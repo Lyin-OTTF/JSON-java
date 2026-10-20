@@ -156,33 +156,39 @@ public class XML {
 
     /**
      * @param cp code point to test
-     * @return true if the code point is not valid for an XML
+     * @return true if the code point must be escaped when serializing to XML
      */
     static boolean mustEscape(int cp) {
+        // Every ISO control character must be written as a numeric character
+        // reference when serializing. This includes #x9 (tab), #xA (LF) and
+        // #xD (CR): literal occurrences of these characters are subject to
+        // whitespace normalization by conforming XML parsers, so they can
+        // only survive a round trip as &#9;, &#10; and &#13; (see #1092).
+        //
+        // This method is only about the serialization path. Numeric character
+        // references found while parsing are validated with
+        // isValidXmlCharacter(int), which accepts the XML-allowed whitespace
+        // control characters (see #1059).
+        return Character.isISOControl(cp) || !isValidXmlCharacter(cp);
+    }
+
+    /**
+     * @param cp code point to test
+     * @return true if the code point is a valid XML 1.0 character
+     */
+    static boolean isValidXmlCharacter(int cp) {
         /* Valid range from https://www.w3.org/TR/REC-xml/#charsets
          *
          * #x9 | #xA | #xD | [#x20-#xD7FF] | [#xE000-#xFFFD] | [#x10000-#x10FFFF]
          *
          * any Unicode character, excluding the surrogate blocks, FFFE, and FFFF.
          */
-        // isISOControl is true when (cp >= 0 && cp <= 0x1F) || (cp >= 0x7F && cp <= 0x9F)
-        // all ISO control characters are out of range except tabs and new lines
-        return (Character.isISOControl(cp)
-                && cp != 0x9
-                && cp != 0xA
-                && cp != 0xD
-            ) || !(
-                // Valid character range per W3C XML 1.0 spec:
-                // #x9 | #xA | #xD | [#x20-#xD7FF] | [#xE000-#xFFFD] | [#x10000-#x10FFFF]
-                // Previously omitted #x9/#xA/#xD, causing unescape("&#10;") etc.
-                // to reject valid LF/TAB/CR as illegal (see #1059)
-                cp == 0x9
-                || cp == 0xA
-                || cp == 0xD
-                || (cp >= 0x20 && cp <= 0xD7FF)
-                || (cp >= 0xE000 && cp <= 0xFFFD)
-                || (cp >= 0x10000 && cp <= 0x10FFFF)
-            )
+        return cp == 0x9
+            || cp == 0xA
+            || cp == 0xD
+            || (cp >= 0x20 && cp <= 0xD7FF)
+            || (cp >= 0xE000 && cp <= 0xFFFD)
+            || (cp >= 0x10000 && cp <= 0x10FFFF)
         ;
     }
 
